@@ -6,14 +6,12 @@
 #include <algorithm>
 #include <chrono>
 
-namespace ch=std::chrono;
-
 std::vector<int> read_file() {
-    std::fstream fs("c:/datos.txt", std::ios::in);
+    std::fstream fs("/workspace/mpi01/datosUnidos.txt", std::ios::in );
     std::string line;
     std::vector<int> ret;
-    while (std::getline(fs, line)) {
-        ret.push_back(std::stoi(line));
+    while( std::getline(fs, line) ){
+        ret.push_back( std::stoi(line) );
     }
     fs.close();
     return ret;
@@ -66,10 +64,10 @@ std::vector<int> copiar_parte_vector(const std::vector<int>& original, int inici
     return copia;
 }
 
+std::vector<int> vector = read_file();
+
 //****************************** MAIN ******************************
 int main(int argc, char **argv) {
-
-    std::vector<int> vector = read_file();
 
     //1. Inicializar MPI
     MPI_Init(&argc, &argv);
@@ -82,8 +80,17 @@ int main(int argc, char **argv) {
 
     if (rank == 0) {
 
+        std::printf("[RANK-0] Tamaño del vector: %zu\n", vector.size());
+
         //Solamente el rank 0 tiene los datos completos
-        int bloque = (vector.size()) / nprocs;
+        int bloque;
+        bool es_impar = vector.size() % 2 != 0;
+        if (es_impar) {
+            bloque = ((vector.size()) / nprocs) + 1;
+        }else{
+            bloque = (vector.size()) / nprocs;
+        }
+
         std::printf("[RANK-0] Tamaño del bloque: %d\n", bloque);
 
         std::printf("[RANK-0] MPI group size: %d\n", nprocs);
@@ -103,7 +110,10 @@ int main(int argc, char **argv) {
         }
 
         //Sumar lo del Rank 0
-        std::vector<int> vector_cero = copiar_parte_vector(vector,9,bloque);
+        int xx = (nprocs-1)*bloque;
+        std::printf("[RANK-0], XXXXXXXXXXXXXXXX %d\n",xx);
+
+        std::vector<int> vector_cero = copiar_parte_vector(vector,(nprocs-1)*bloque,vector.size()-(nprocs-1)*bloque);
 
         std::string str = "";
         for (int i = 0; i < vector_cero.size(); i++) {
@@ -125,7 +135,7 @@ int main(int argc, char **argv) {
         //-- 999. Recibiendo la suma
         for(int nRank=1;nRank<nprocs; nRank++){
             std::vector<int> vector_parcial(bloque);
-            MPI_Recv(vector_parcial.data(), vector_parcial.size(), MPI_INT, nRank, MPI_ANY_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            MPI_Recv(vector_parcial.data(), bloque, MPI_INT, nRank, MPI_ANY_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
             std::string stra = "";
             for (int i = 0; i < vector_parcial.size(); i++) {
@@ -145,7 +155,14 @@ int main(int argc, char **argv) {
         std::printf("[RANK-0], Vector Ordenado es: [%s]\n", str3.c_str());
 
     } else{
-        int bloque = (vector.size()) / nprocs;
+        int bloque;
+        bool es_impar = vector.size() % 2 != 0;
+        if (es_impar) {
+            bloque = ((vector.size()) / nprocs) + 1;
+        }else{
+            bloque = (vector.size()) / nprocs;
+        }
+
         std::vector<int> vector_tmp(bloque);//Soolo toca enviar el numero de elmentos por la particion
 
         //std::printf("Soy el rank %d recibiendo datos\n", rank);
